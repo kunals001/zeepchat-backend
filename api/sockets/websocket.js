@@ -102,20 +102,36 @@ function handleEvent(data, ws) {
   const { type, payload } = data;
 
   switch (type) {
-    case "send_message": {
+    
+  case "send_message": {
   const receiver = clients.get(payload.to);
 
+  const message = {
+    _id: uuidv4(),
+    sender: { _id: ws.userId },
+    message: payload.content || "", // text part
+    mediaUrl: payload.mediaUrl || null, // 🖼️ or 🎥 file
+    mediaType: payload.mediaType || null, // "image" | "video"
+    type: payload.mediaUrl ? "media" : "text", // ✅ distinguish
+    createdAt: new Date().toISOString(),
+  };
+
+  // Send to receiver
   if (receiver && receiver.readyState === receiver.OPEN) {
     receiver.send(
       JSON.stringify({
         type: "receive_message",
-        payload: {
-          message: {
-            _id: uuidv4(), // ✅ always unique
-            sender: { _id: ws.userId },
-            message: payload.content,
-          },
-        },
+        payload: { message },
+      })
+    );
+  }
+
+  // Optional: Send back to sender to confirm
+  if (ws.readyState === ws.OPEN) {
+    ws.send(
+      JSON.stringify({
+        type: "receive_message",
+        payload: { message },
       })
     );
   }

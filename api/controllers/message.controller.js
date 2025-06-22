@@ -4,7 +4,7 @@ import User from "../models/user.model.js";
 
 export const sendMessages = async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, mediaUrl, type = "text", caption = "" } = req.body; // ✅ include caption
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
@@ -40,17 +40,23 @@ export const sendMessages = async (req, res) => {
       sender: senderId,
       receiver: receiverId,
       message,
+      type,
+      mediaUrl: mediaUrl || null,
+      caption: caption || "", // ✅ save caption
       conversation: conversation._id,
     });
 
     conversation.messages.push(newMessage._id);
+    conversation.lastMessage = newMessage._id;
     await conversation.save();
 
-    // Build full message with sender & receiver info
     const fullMessage = {
       _id: newMessage._id,
       message: newMessage.message,
+      caption: newMessage.caption, // ✅ send caption in response
       createdAt: newMessage.createdAt,
+      type: newMessage.type,
+      mediaUrl: newMessage.mediaUrl,
       sender: {
         _id: sender._id,
         fullName: sender.fullName,
@@ -65,7 +71,6 @@ export const sendMessages = async (req, res) => {
       },
     };
 
-    /** ✅ REAL-TIME PUSH VIA WEBSOCKET **/
     const ws = req.app.get("wss");
     const clients = req.app.get("clients");
     const receiverSocket = clients.get(receiverId.toString());
