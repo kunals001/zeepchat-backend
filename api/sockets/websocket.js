@@ -170,7 +170,7 @@ function handleEvent(data, ws) {
   }
 
 
-  case "react_message": {
+    case "react_message": {
   const { messageId, emoji } = payload;
 
   // Broadcast to receiver
@@ -188,7 +188,48 @@ function handleEvent(data, ws) {
   }
 
   break;
+    }
+
+  case "delete_message": {
+  const { messageId, type, to } = payload;
+
+  if (type === "for_everyone") {
+    // 🔁 Notify both users to remove message
+    const receiver = clients.get(to);
+    const deletionPayload = {
+      type: "message_deleted",
+      payload: {
+        messageId,
+        type: "for_everyone",
+      },
+    };
+
+    // Send to receiver
+    if (receiver && receiver.readyState === receiver.OPEN) {
+      receiver.send(JSON.stringify(deletionPayload));
+    }
+
+    // Send to sender
+    if (ws.readyState === ws.OPEN) {
+      ws.send(JSON.stringify(deletionPayload));
+    }
+
+  } else if (type === "for_me") {
+    // 🔁 Notify only sender to remove it from their UI
+    if (ws.readyState === ws.OPEN) {
+      ws.send(JSON.stringify({
+        type: "message_deleted",
+        payload: {
+          messageId,
+          type: "for_me",
+        },
+      }));
+    }
   }
+
+  break;
+  }
+
 
     default:
       ws.send(

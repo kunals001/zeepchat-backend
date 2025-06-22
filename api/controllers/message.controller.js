@@ -212,4 +212,39 @@ export const getConversationsWithLastMessage = async (req, res) => {
   }
 };
 
+export const deleteMessage = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { messageId } = req.params;
+    const { type } = req.query;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ success: false, message: "Message not found" });
+
+    if (type === "for_me") {
+      if (!message.deletedFor.includes(userId)) {
+        message.deletedFor.push(userId);
+        await message.save();
+      }
+      return res.status(200).json({ success: true, message: "Message deleted for you" });
+    }
+
+    if (type === "for_everyone") {
+      // Only sender can delete for everyone
+      if (String(message.sender) !== String(userId)) {
+        return res.status(403).json({ success: false, message: "Unauthorized" });
+      }
+
+      await Message.findByIdAndDelete(messageId);
+      return res.status(200).json({ success: true, message: "Message deleted for everyone" });
+    }
+
+    res.status(400).json({ success: false, message: "Invalid type" });
+  } catch (err) {
+    console.error("Delete Message Error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+
 
