@@ -30,7 +30,13 @@ const messageSchema = new mongoose.Schema({
     type: String,
     enum: ["text", "image", "video", "file"],
     default: "text"
-  }
+  },
+  reactions: [
+      {
+        emoji: { type: String },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      },
+    ],
 
 }, { timestamps: true });
 

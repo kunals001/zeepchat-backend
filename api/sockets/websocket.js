@@ -153,6 +153,27 @@ function handleEvent(data, ws) {
   break;
   }
 
+
+  case "react_message": {
+  const { messageId, emoji } = payload;
+
+  // Broadcast to receiver
+  const receiverSocket = clients.get(payload.to); // assuming payload.to is receiver ID
+
+  if (receiverSocket && receiverSocket.readyState === receiverSocket.OPEN) {
+    receiverSocket.send(JSON.stringify({
+      type: "message_reacted",
+      payload: {
+        messageId,
+        emoji,
+        userId: ws.userId,
+      },
+    }));
+  }
+
+  break;
+  }
+
     default:
       ws.send(
         JSON.stringify({

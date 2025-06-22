@@ -88,8 +88,6 @@ export const sendMessages = async (req, res) => {
   }
 };
 
-
-
 export const getMessages = async (req, res) => {
   try {
     const senderId = req.user._id;
@@ -121,3 +119,92 @@ export const getMessages = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
+export const addReaction = async (req, res) => {
+  try {
+    const { messageId, emoji } = req.body;
+    const userId = req.user._id; // 🛡️ Assume auth middleware adds this
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ error: "Message not found" });
+
+    if (!message.reactions) message.reactions = [];
+
+    // Find if user already reacted
+    const existingReaction = message.reactions.find(
+      (r) => r.userId.toString() === userId.toString()
+    );
+
+    if (existingReaction) {
+      if (existingReaction.emoji === emoji) {
+        // ✅ Same emoji again → remove
+        message.reactions = message.reactions.filter(
+          (r) => r.userId.toString() !== userId.toString()
+        );
+      } else {
+        // 🔁 Change emoji
+        message.reactions = message.reactions.filter(
+          (r) => r.userId.toString() !== userId.toString()
+        );
+        message.reactions.push({ emoji, userId });
+      }
+    } else {
+      // ➕ First time reaction
+      message.reactions.push({ emoji, userId });
+    }
+
+    await message.save();
+
+    // Optional: populate sender info if needed
+    await message.populate("sender", "fullName profilePic userName");
+
+    // Optional WebSocket Emit to message receiver
+    req.io?.to(message.receiver?.toString()).emit("reaction_update", {
+      messageId: message._id,
+      reactions: message.reactions,
+    });
+
+    res.status(200).json({ message });
+  } catch (err) {
+    console.error("❌ Reaction error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const getConversationsWithLastMessage = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const conversations = await Conversation.find({
+      participants: userId,
+    })
+      .populate("participants", "fullName userName profilePic")
+      .populate({
+        path: "lastMessage",
+        select: "message createdAt",
+      })
+      .sort({ updatedAt: -1 });
+
+    const result = conversations.map((conv) => {
+      const otherUser = conv.participants.find(
+        (p) => p._id.toString() !== userId.toString()
+      );
+
+      return {
+        _id: otherUser._id,
+        fullName: otherUser.fullName,
+        userName: otherUser.userName,
+        profilePic: otherUser.profilePic,
+        lastMessageAt: conv.lastMessage?.createdAt || null,
+        lastMessage: conv.lastMessage?.message || "",
+      };
+    });
+
+    res.status(200).json(result);
+  } catch (err) {
+    console.error("❌ Error in getConversationsWithLastMessage:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
