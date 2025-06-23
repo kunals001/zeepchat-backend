@@ -189,7 +189,7 @@ function handleEvent(data, ws) {
   break;
     }
 
-case "delete_message": {
+    case "delete_message": {
   const { messageId, type, to } = payload;
 
   const deletionPayload = {
@@ -226,7 +226,23 @@ case "delete_message": {
   }
 
   break;
-}
+    }
+
+  case "clear_chat": {
+  const { userId } = payload;
+
+  const deletionPayload = {
+    type: "chat_cleared",
+    payload: {
+      userId: ws.userId, // jinhone clear kiya
+    },
+  };
+    if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(deletionPayload));
+    }
+    break;
+    }
+
 
 
 

@@ -262,6 +262,27 @@ export const deleteMessage = async (req, res) => {
   }
 };
 
+export const clearChatForMe = async (req,res) =>{
+  try {
+    const currentUserId = req.user._id;
+  const otherUserId = req.params.userId;
+
+  await Message.updateMany(
+    {
+      $or: [
+        { sender: currentUserId, receiver: otherUserId },
+        { sender: otherUserId, receiver: currentUserId }
+      ],
+    },
+    { $addToSet: { deletedFor: currentUserId } }
+  );
+
+  res.json({ success: true });
+  } catch (error) {
+    console.log('Error in clearChatForMe',error.message);
+  }
+}
+
 
 
 
