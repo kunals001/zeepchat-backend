@@ -10,7 +10,6 @@ export default function setupWebSocket(wss) {
   const interval = setInterval(() => {
     for (const [userId, ws] of clients.entries()) {
       if (ws.isAlive === false) {
-        console.log(`❌ No pong from ${userId}. Terminating.`);
         clients.delete(userId);
         ws.terminate();
 
@@ -33,7 +32,7 @@ export default function setupWebSocket(wss) {
     clearInterval(interval);
   });
 
-wss.on("connection", async (ws, req) => {
+  wss.on("connection", async (ws, req) => {
   ws.isAlive = true;
   ws.on("pong", () => {
     ws.isAlive = true;
@@ -190,45 +189,45 @@ function handleEvent(data, ws) {
   break;
     }
 
-  case "delete_message": {
+case "delete_message": {
   const { messageId, type, to } = payload;
 
+  const deletionPayload = {
+    type: "message_deleted",
+    payload: {
+      messageId,
+      deleteType: type === "for_everyone" ? "everyone" : "me",
+      userId: ws.userId,
+    },
+  };
+
   if (type === "for_everyone") {
-    // 🔁 Notify both users to remove message
+    // ✅ Send to RECEIVER
     const receiver = clients.get(to);
-    const deletionPayload = {
-      type: "message_deleted",
-      payload: {
-        messageId,
-        type: "for_everyone",
-      },
-    };
-
-    // Send to receiver
-    if (receiver && receiver.readyState === receiver.OPEN) {
+    if (receiver && receiver.readyState === WebSocket.OPEN) {
       receiver.send(JSON.stringify(deletionPayload));
+      console.log("📤 Sent to receiver", to);
+    } else {
+      console.log("⚠️ Receiver not connected", to);
     }
 
-    // Send to sender
-    if (ws.readyState === ws.OPEN) {
+    // ✅ Send to SENDER
+    if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(deletionPayload));
+      console.log("📤 Sent to sender", ws.userId);
     }
+  }
 
-  } else if (type === "for_me") {
-    // 🔁 Notify only sender to remove it from their UI
-    if (ws.readyState === ws.OPEN) {
-      ws.send(JSON.stringify({
-        type: "message_deleted",
-        payload: {
-          messageId,
-          type: "for_me",
-        },
-      }));
+  if (type === "me") {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(deletionPayload));
+      console.log("📤 Sent delete for_me to", ws.userId);
     }
   }
 
   break;
-  }
+}
+
 
 
     default:

@@ -219,32 +219,50 @@ export const deleteMessage = async (req, res) => {
     const { type } = req.query;
 
     const message = await Message.findById(messageId);
-    if (!message) return res.status(404).json({ success: false, message: "Message not found" });
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
 
     if (type === "for_me") {
+      console.log("🧹 Deleting message for me:", messageId);
+
+      if (!message.deletedFor) message.deletedFor = [];
+
       if (!message.deletedFor.includes(userId)) {
         message.deletedFor.push(userId);
         await message.save();
+        console.log("✅ Message marked deleted for user:", userId);
+      } else {
+        console.log("⚠️ Message already deleted for user:", userId);
       }
+
       return res.status(200).json({ success: true, message: "Message deleted for you" });
     }
 
     if (type === "for_everyone") {
-      // Only sender can delete for everyone
+
       if (String(message.sender) !== String(userId)) {
+        console.log("⛔ Unauthorized delete attempt by user:", userId);
         return res.status(403).json({ success: false, message: "Unauthorized" });
       }
 
-      await Message.findByIdAndDelete(messageId);
+     message.message = "This message was deleted.";
+     message.type = "text";
+     message.reactions = [];
+     await message.save();
       return res.status(200).json({ success: true, message: "Message deleted for everyone" });
     }
 
-    res.status(400).json({ success: false, message: "Invalid type" });
+    console.log("❌ Invalid delete type received:", type);
+    return res.status(400).json({ success: false, message: "Invalid delete type" });
+
   } catch (err) {
-    console.error("Delete Message Error:", err);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    console.error("❌ Delete Message Error:", err);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
+
 
 
 
