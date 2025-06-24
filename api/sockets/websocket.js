@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import url from "url";
 import User from "../models/user.model.js";
 import { v4 as uuidv4 } from "uuid"; 
+import Conversation from "../models/conversation.model.js";
 
 const clients = new Map();
 
@@ -97,7 +98,7 @@ export default function setupWebSocket(wss) {
 }
 
 // ✅ Event handler
-function handleEvent(data, ws) {
+async function handleEvent(data, ws) {
   const { type, payload } = data;
 
   switch (type) {
@@ -113,9 +114,16 @@ case "send_message": {
     mediaType: payload.mediaType || null,
     type: payload.mediaUrl ? "media" : "text",
     createdAt: new Date().toISOString(),
-    replyTo: payload.replyTo || null, // ✅ add this
+    replyTo: payload.replyTo || null,
   };
 
+  // ✅ 1. Update lastMessage in database
+  await Conversation.findByIdAndUpdate(payload.conversationId, {
+    lastMessage: message._id, // if stored in DB
+    updatedAt: new Date(),    // important for sorting
+  });
+
+  // ✅ 2. Broadcast to both users
   const responsePayload = {
     type: "receive_message",
     payload: { message },
@@ -129,8 +137,26 @@ case "send_message": {
     ws.send(JSON.stringify(responsePayload));
   }
 
+  // ✅ 3. Send last_message_updated to update chat list
+  const lastMessagePayload = {
+    type: "last_message_updated",
+    payload: {
+      conversationId: payload.conversationId,
+      lastMessage: message,
+    },
+  };
+
+  if (receiver && receiver.readyState === receiver.OPEN) {
+    receiver.send(JSON.stringify(lastMessagePayload));
+  }
+
+  if (ws.readyState === ws.OPEN) {
+    ws.send(JSON.stringify(lastMessagePayload));
+  }
+
   break;
 }
+
 
 
     case "typing": {

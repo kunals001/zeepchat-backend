@@ -8,7 +8,7 @@ import {sendMessages,getMessages,addReaction,getConversationsWithLastMessage, de
 router.post("/react",protectRoute,addReaction);
 router.get("/:id",protectRoute,getMessages);
 router.post("/send/:id",protectRoute,sendMessages);
-router.get("/last",protectRoute,getConversationsWithLastMessage);
+router.get("/",protectRoute,getConversationsWithLastMessage);
 router.delete("/message/:messageId", protectRoute, deleteMessage);
 router.delete("/clear/:userId", protectRoute, clearChatForMe);
 
