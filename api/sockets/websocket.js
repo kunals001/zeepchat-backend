@@ -102,41 +102,36 @@ function handleEvent(data, ws) {
 
   switch (type) {
     
-  case "send_message": {
+case "send_message": {
   const receiver = clients.get(payload.to);
 
   const message = {
     _id: uuidv4(),
     sender: { _id: ws.userId },
-    message: payload.content || "", // text part
-    mediaUrl: payload.mediaUrl || null, // 🖼️ or 🎥 file
-    mediaType: payload.mediaType || null, // "image" | "video"
-    type: payload.mediaUrl ? "media" : "text", // ✅ distinguish
+    message: payload.content || "",
+    mediaUrl: payload.mediaUrl || null,
+    mediaType: payload.mediaType || null,
+    type: payload.mediaUrl ? "media" : "text",
     createdAt: new Date().toISOString(),
+    replyTo: payload.replyTo || null, // ✅ add this
   };
 
-  // Send to receiver
+  const responsePayload = {
+    type: "receive_message",
+    payload: { message },
+  };
+
   if (receiver && receiver.readyState === receiver.OPEN) {
-    receiver.send(
-      JSON.stringify({
-        type: "receive_message",
-        payload: { message },
-      })
-    );
+    receiver.send(JSON.stringify(responsePayload));
   }
 
-  // Optional: Send back to sender to confirm
   if (ws.readyState === ws.OPEN) {
-    ws.send(
-      JSON.stringify({
-        type: "receive_message",
-        payload: { message },
-      })
-    );
+    ws.send(JSON.stringify(responsePayload));
   }
 
   break;
-  }
+}
+
 
     case "typing": {
       const receiver = clients.get(payload.to);
@@ -188,6 +183,30 @@ function handleEvent(data, ws) {
 
   break;
     }
+
+    case "seen_message": {
+  const { messageId, to } = payload;
+
+  const receiverSocket = clients.get(to); // original sender
+  if (receiverSocket && receiverSocket.readyState === WebSocket.OPEN) {
+    receiverSocket.send(
+      JSON.stringify({
+        type: "message_seen",
+        payload: {
+          messageId,
+          seenBy: ws.userId,
+        },
+      })
+    );
+    console.log(`👁️ Message ${messageId} seen by ${ws.userId}`);
+  } else {
+    console.log("❌ Receiver not connected or socket not open");
+  }
+  break;
+}
+
+
+
 
     case "delete_message": {
   const { messageId, type, to } = payload;

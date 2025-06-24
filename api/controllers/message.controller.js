@@ -4,7 +4,14 @@ import User from "../models/user.model.js";
 
 export const sendMessages = async (req, res) => {
   try {
-    const { message, mediaUrl, type = "text", caption = "" } = req.body; // ✅ include caption
+    const {
+      message,
+      mediaUrl,
+      type = "text",
+      caption = "",
+      replyTo = null, // ✅ accept replyTo
+    } = req.body;
+
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
@@ -36,24 +43,35 @@ export const sendMessages = async (req, res) => {
       });
     }
 
+    // ✅ Create new message with replyTo
     const newMessage = await Message.create({
       sender: senderId,
       receiver: receiverId,
       message,
       type,
       mediaUrl: mediaUrl || null,
-      caption: caption || "", // ✅ save caption
+      caption: caption || "",
       conversation: conversation._id,
+      replyTo, // ✅ save replyTo
     });
 
     conversation.messages.push(newMessage._id);
     conversation.lastMessage = newMessage._id;
     await conversation.save();
 
+    // ✅ Populate replyTo for response (if exists)
+    await newMessage.populate({
+      path: "replyTo",
+      populate: {
+        path: "sender",
+        select: "_id fullName userName profilePic",
+      },
+    });
+
     const fullMessage = {
       _id: newMessage._id,
       message: newMessage.message,
-      caption: newMessage.caption, // ✅ send caption in response
+      caption: newMessage.caption,
       createdAt: newMessage.createdAt,
       type: newMessage.type,
       mediaUrl: newMessage.mediaUrl,
@@ -69,8 +87,19 @@ export const sendMessages = async (req, res) => {
         userName: receiver.userName,
         profilePic: receiver.profilePic,
       },
+      replyTo: newMessage.replyTo
+        ? {
+            _id: newMessage.replyTo._id,
+            message: newMessage.replyTo.message,
+            caption: newMessage.replyTo.caption,
+            type: newMessage.replyTo.type,
+            mediaUrl: newMessage.replyTo.mediaUrl,
+            sender: newMessage.replyTo.sender,
+          }
+        : null,
     };
 
+    // ✅ Send via WebSocket if receiver online
     const ws = req.app.get("wss");
     const clients = req.app.get("clients");
     const receiverSocket = clients.get(receiverId.toString());
@@ -92,6 +121,7 @@ export const sendMessages = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
 
 export const getMessages = async (req, res) => {
   try {
